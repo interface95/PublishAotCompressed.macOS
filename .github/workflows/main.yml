@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version to create'     
+        description: 'Release version to create (without v prefix, e.g., 1.0.0-preview.2)'     
         required: true
 
 jobs:
