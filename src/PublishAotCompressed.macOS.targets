@@ -1,0 +1,62 @@
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+
+  <PropertyGroup>
+    <UpxSemaphorePath>$(IntermediateOutputPath)upx.semaphore</UpxSemaphorePath>
+    
+    <!-- Support short property name 'Upx' as alias for 'PublishAotCompressed' -->
+    <PublishAotCompressed Condition="'$(Upx)' != ''">$(Upx)</PublishAotCompressed>
+  </PropertyGroup>
+
+  <Target Name="UpxCompress"
+    Condition="'$(PublishAotCompressed)' != 'false' AND '$(Upx)' != 'false'"
+    AfterTargets="LinkNative"
+    Inputs="$(NativeBinary)"
+    Outputs="$(UpxSemaphorePath)">
+
+    <PropertyGroup>
+      <!-- Verify we're running on macOS -->
+      <_IsMacOS>$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::OSX)))</_IsMacOS>
+      
+      <!-- Get macOS architecture -->
+      <_OSHostArch>$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant)</_OSHostArch>
+      
+      <!-- Determine target platform identifier -->
+      <_TargetOSIdentifier Condition="$(RuntimeIdentifier.StartsWith('win'))">win</_TargetOSIdentifier>
+      <_TargetOSIdentifier Condition="$(RuntimeIdentifier.StartsWith('linux'))">linux</_TargetOSIdentifier>
+      <_TargetOSIdentifier Condition="$(RuntimeIdentifier.StartsWith('osx'))">osx</_TargetOSIdentifier>
+      
+      <!-- Target architecture -->
+      <_ArchitectureIdentifier>$(RuntimeIdentifier.SubString($([MSBuild]::Add($(RuntimeIdentifier.LastIndexOf('-')), 1))))</_ArchitectureIdentifier>
+
+      <!-- UPX arguments based on compression settings -->
+      <_UpxArgs Condition="'$(CompressBest)' != 'false'">--best $(_UpxArgs)</_UpxArgs>
+      <_UpxArgs Condition="'$(PublishLzmaCompressed)' == 'true'">--lzma $(_UpxArgs)</_UpxArgs>
+
+      <!-- Platform-specific workarounds -->
+      <_UpxArgs Condition="'$(_ArchitectureIdentifier)' == 'x86'">--force $(_UpxArgs)</_UpxArgs>
+      
+      <!-- UPX tool path (always use macOS version) -->
+      <_UpxPath>$(MSBuildThisFileDirectory)../tools/osx-$(_OSHostArch)/upx</_UpxPath>
+    </PropertyGroup>
+
+    <!-- Ensure we're on macOS -->
+    <Error Condition="'$(_IsMacOS)' != 'true'" 
+           Text="PublishAotCompressed.macOS can only be used on macOS. Current OS: $([System.Runtime.InteropServices.RuntimeInformation]::OSDescription)" />
+
+    <!-- Skip compression for macOS targets (cross-compilation targets only) -->
+    <Message Condition="'$(_TargetOSIdentifier)' == 'osx'" 
+             Importance="high"
+             Text="Skipping UPX compression for macOS target ($(RuntimeIdentifier)). This package is designed for cross-compilation to Windows/Linux only. macOS UPX-compressed binaries cannot run due to security restrictions." />
+
+    <!-- Ensure UPX tool exists for non-macOS targets -->
+    <Error Condition="'$(_TargetOSIdentifier)' != 'osx' AND !Exists('$(_UpxPath)')" 
+           Text="UPX tool not found at: $(_UpxPath). Please ensure the package is properly installed." />
+
+    <!-- Run UPX compression (only for Windows/Linux targets) -->
+    <Exec Condition="'$(_TargetOSIdentifier)' != 'osx'" 
+          Command="&quot;$(_UpxPath)&quot; $(_UpxArgs) &quot;$(NativeBinary)&quot;" />
+
+    <Touch Files="$(UpxSemaphorePath)" AlwaysCreate="true" />
+  </Target>
+
+</Project>

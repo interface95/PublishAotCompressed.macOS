@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.Build.NoTargets">
+  <PropertyGroup>
+
+    <TargetFramework>netstandard2.0</TargetFramework>
+
+    <PackageId>PublishAotCompressed.macOS</PackageId>
+    <Version Condition="'$(Version)' == ''">1.0.0-dev</Version>
+    <Authors>Modified for macOS cross-compilation</Authors>
+    <Company>Custom Build</Company>
+    <Description>MSBuild targets to compress PublishAot outputs with UPX on macOS. Supports cross-compilation from macOS to Linux and Windows platforms. UPX runs on macOS host to compress target platform binaries.</Description>
+    <PackageProjectUrl>https://github.com/MichalStrehovsky/PublishAotCompressed</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="PublishAotCompressed.macOS.targets">
+      <Pack>true</Pack>
+      <PackagePath>build</PackagePath>
+    </None>
+    <None Include="../tools/osx-arm64/*">
+      <Pack>true</Pack>
+      <PackagePath>tools/osx-arm64</PackagePath>
+    </None>
+    <None Include="../README.md">
+      <Pack>true</Pack>
+      <PackagePath>/</PackagePath>
+    </None>
+  </ItemGroup>
+</Project>
