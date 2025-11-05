@@ -49,6 +49,14 @@ jobs:
           name: PublishAotCompressed.macOS.${{ github.event.inputs.version }}.nupkg
           path: src/bin/Debug/PublishAotCompressed.macOS.${{ github.event.inputs.version }}.nupkg
       
+      - name: Publish to NuGet.org
+        if: ${{ github.event.inputs.version != '' }}
+        run: |
+          dotnet nuget push src/bin/Debug/PublishAotCompressed.macOS.${{ github.event.inputs.version }}.nupkg \
+            --api-key ${{ secrets.NUGET_API_KEY }} \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+      
       - name: Create Release Tag
         if: ${{ github.event.inputs.version != '' }}
         run: |
@@ -56,3 +64,30 @@ jobs:
           git config user.email github-actions@github.com
           git tag v${{ github.event.inputs.version }}
           git push origin v${{ github.event.inputs.version }}
+      
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.version != '' }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: v${{ github.event.inputs.version }}
+          body: |
+            ## PublishAotCompressed.macOS v${{ github.event.inputs.version }}
+            
+            Automatic UPX compression for .NET Native AOT cross-compilation from macOS.
+            
+            ### Installation
+            ```xml
+            <PackageReference Include="PublishAotCompressed.macOS" Version="${{ github.event.inputs.version }}" />
+            ```
+            
+            ### Quick Start
+            ```bash
+            dotnet publish -r win-x64 -c Release
+            ```
+            
+            See [README.md](https://github.com/interface95/PublishAotCompressed.macOS/blob/master/README.md) for details.
+          files: src/bin/Debug/PublishAotCompressed.macOS.${{ github.event.inputs.version }}.nupkg
+          prerelease: ${{ contains(github.event.inputs.version, 'preview') || contains(github.event.inputs.version, 'alpha') || contains(github.event.inputs.version, 'beta') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
