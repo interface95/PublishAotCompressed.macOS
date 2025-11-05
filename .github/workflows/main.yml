@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version to create (without v prefix, e.g., 1.0.0-preview.2)'     
+        description: 'Release version to create (e.g., v1.0.0-preview or 1.0.0-preview)'     
         required: true
 
 jobs:
@@ -27,6 +27,18 @@ jobs:
       - name: Install UPX
         run: brew install upx
       
+      - name: Prepare version strings
+        if: ${{ github.event.inputs.version != '' }}
+        id: version
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          # Remove 'v' prefix if present
+          VERSION_NO_V="${VERSION#v}"
+          echo "nuget_version=${VERSION_NO_V}" >> $GITHUB_OUTPUT
+          echo "git_tag=v${VERSION_NO_V}" >> $GITHUB_OUTPUT
+          echo "NuGet Version: ${VERSION_NO_V}"
+          echo "Git Tag: v${VERSION_NO_V}"
+      
       - name: Build Package (CI)
         if: ${{ github.event.inputs.version == '' }}
         run: |
@@ -40,19 +52,19 @@ jobs:
       
       - name: Build Package (CD)
         if: ${{ github.event.inputs.version != '' }}
-        run: dotnet build -t:Pack src/PublishAotCompressed.macOS.nuproj -p:Version=${{ github.event.inputs.version }}
+        run: dotnet build -t:Pack src/PublishAotCompressed.macOS.nuproj -p:Version=${{ steps.version.outputs.nuget_version }}
       
       - name: Archive NuGet Package
         if: ${{ github.event.inputs.version != '' }}
         uses: actions/upload-artifact@v4
         with:
-          name: PublishAotCompressed.macOS.${{ github.event.inputs.version }}.nupkg
-          path: src/bin/Debug/PublishAotCompressed.macOS.${{ github.event.inputs.version }}.nupkg
+          name: PublishAotCompressed.macOS.${{ steps.version.outputs.nuget_version }}.nupkg
+          path: src/bin/Debug/PublishAotCompressed.macOS.${{ steps.version.outputs.nuget_version }}.nupkg
       
       - name: Publish to NuGet.org
         if: ${{ github.event.inputs.version != '' }}
         run: |
-          dotnet nuget push src/bin/Debug/PublishAotCompressed.macOS.${{ github.event.inputs.version }}.nupkg \
+          dotnet nuget push src/bin/Debug/PublishAotCompressed.macOS.${{ steps.version.outputs.nuget_version }}.nupkg \
             --api-key ${{ secrets.NUGET_API_KEY }} \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
@@ -62,23 +74,23 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git tag v${{ github.event.inputs.version }}
-          git push origin v${{ github.event.inputs.version }}
+          git tag ${{ steps.version.outputs.git_tag }}
+          git push origin ${{ steps.version.outputs.git_tag }}
       
       - name: Create GitHub Release
         if: ${{ github.event.inputs.version != '' }}
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ github.event.inputs.version }}
-          name: v${{ github.event.inputs.version }}
+          tag_name: ${{ steps.version.outputs.git_tag }}
+          name: ${{ steps.version.outputs.git_tag }}
           body: |
-            ## PublishAotCompressed.macOS v${{ github.event.inputs.version }}
+            ## PublishAotCompressed.macOS ${{ steps.version.outputs.git_tag }}
             
             Automatic UPX compression for .NET Native AOT cross-compilation from macOS.
             
             ### Installation
             ```xml
-            <PackageReference Include="PublishAotCompressed.macOS" Version="${{ github.event.inputs.version }}" />
+            <PackageReference Include="PublishAotCompressed.macOS" Version="${{ steps.version.outputs.nuget_version }}" />
             ```
             
             ### Quick Start
@@ -87,7 +99,7 @@ jobs:
             ```
             
             See [README.md](https://github.com/interface95/PublishAotCompressed.macOS/blob/master/README.md) for details.
-          files: src/bin/Debug/PublishAotCompressed.macOS.${{ github.event.inputs.version }}.nupkg
-          prerelease: ${{ contains(github.event.inputs.version, 'preview') || contains(github.event.inputs.version, 'alpha') || contains(github.event.inputs.version, 'beta') }}
+          files: src/bin/Debug/PublishAotCompressed.macOS.${{ steps.version.outputs.nuget_version }}.nupkg
+          prerelease: ${{ contains(steps.version.outputs.nuget_version, 'preview') || contains(steps.version.outputs.nuget_version, 'alpha') || contains(steps.version.outputs.nuget_version, 'beta') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
